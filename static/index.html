@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Sync with Chat</title>
+    <style>
+        #video-container {
+            position: relative;
+            width: 100%;
+        }
+
+        video {
+            width: 100%;
+        }
+
+        #custom-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        #custom-controls button {
+            background: none;
+            border: none;
+            color: white;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+
+        #custom-controls button:focus {
+            outline: none;
+        }
+
+        #chat-box {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            height: 30%;
+            border: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(255, 255, 255, 0.8);
+            opacity: 0.8;
+            border-radius: 5px;
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        #chat-input-container {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #fff;
+            border-bottom-left-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        #send-button {
+            padding: 5px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        #send-button:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <video id="video" controls>
+            <source src="fire-drill.mp4" type="video/mp4">
+        </video>
+        <div id="custom-controls">
+            <button id="rewind">⏪ 10s</button>
+            <button id="play-pause">▶️</button>
+            <button id="forward">⏩ 10s</button>
+        </div>
+        <div id="chat-box">
+            <div id="chat-messages"></div>
+            <div id="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Type a message..." />
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const video = document.getElementById('video');
+        const playPauseButton = document.getElementById('play-pause');
+        const rewindButton = document.getElementById('rewind');
+        const forwardButton = document.getElementById('forward');
+        const chatBox = document.getElementById('chat-box');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.hostname}:${window.location.port}/ws`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+            console.log('Connected to WebSocket');
+        };
+
+        ws.onmessage = function(event) {
+            const message = JSON.parse(event.data);
+            console.log('Message received:', message);
+            if (message.action === 'play') {
+                video.currentTime = message.time;
+                video.play();
+                playPauseButton.textContent = '⏸';
+            } else if (message.action === 'pause') {
+                video.currentTime = message.time;
+                video.pause();
+                playPauseButton.textContent = '▶️';
+            } else if (message.action === 'rewind') {
+                video.currentTime = message.time;
+            } else if (message.action === 'forward') {
+                video.currentTime = message.time;
+            } else if (message.action === 'chat') {
+                displayMessage(message);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('Disconnected from WebSocket');
+        };
+
+        playPauseButton.addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+                playPauseButton.textContent = '⏸';
+                ws.send(JSON.stringify({ action: 'play', time: video.currentTime }));
+            } else {
+                video.pause();
+                playPauseButton.textContent = '▶️';
+                ws.send(JSON.stringify({ action: 'pause', time: video.currentTime }));
+            }
+        });
+
+        rewindButton.addEventListener('click', () => {
+            video.currentTime = Math.max(0, video.currentTime - 10);
+            ws.send(JSON.stringify({ action: 'rewind', time: video.currentTime }));
+        });
+
+        forwardButton.addEventListener('click', () => {
+            video.currentTime = Math.min(video.duration, video.currentTime + 10);
+            ws.send(JSON.stringify({ action: 'forward', time: video.currentTime }));
+        });
+
+        video.onplay = function() {
+            ws.send(JSON.stringify({ action: 'play', time: video.currentTime }));
+        };
+
+        video.onpause = function() {
+            ws.send(JSON.stringify({ action: 'pause', time: video.currentTime }));
+        };
+
+        video.ontimeupdate = function() {
+            if (!video.paused && !video.seeking) {
+                ws.send(JSON.stringify({ action: 'timeupdate', time: video.currentTime }));
+            }
+        };
+
+        sendButton.addEventListener('click', () => {
+            const message = chatInput.value;
+            if (message.trim() !== '') {
+                ws.send(JSON.stringify({ action: 'chat', content: message }));
+                chatInput.value = '';
+            }
+        });
+
+        chatInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendButton.click();
+            }
+        });
+
+            function displayMessage(message) {
+            const messageElement = document.createElement('div');
+            const senderClass = message.sender === 'Vinay' ? 'sender-vinay' : 'sender-akanksha';
+            messageElement.classList.add('message', senderClass);
+            messageElement.textContent = `${message.sender}: ${message.content}`;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
