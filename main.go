@@ -57,8 +57,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			delete(clients, ws)
 			break
 		}
-		// Set the sender's name based on some logic (e.g., hardcoded for simplicity)
-		msg.Sender = "Akanksha" // Adjust logic as per your needs
+		// Check the URL and set the sender's name accordingly
+		if r.Host == "localhost:8080" {
+			msg.Sender = "Vinay"
+		} else {
+			msg.Sender = "other"
+		}
+
 		broadcast <- msg
 	}
 }
